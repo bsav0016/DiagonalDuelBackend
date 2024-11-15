@@ -1,11 +1,11 @@
 from django.urls import path
-from rest_framework import routers
-from django.conf.urls import include
+from .views import UserRegistrationView, LoginView,GameListCreateView, GameTimeRemainingView, MoveCreateView
 
-
-router = routers.DefaultRouter()
-#router.register('user', UserViewSet)
 
 urlpatterns = [
-    path('', include(router.urls))
+    path('register/', UserRegistrationView.as_view(), name='user-registration'),
+    path('login/', LoginView.as_view(), name='login'),
+    path('games/', GameListCreateView.as_view(), name='game-list-create'),
+    path('games/<int:pk>/time-remaining/', GameTimeRemainingView.as_view(), name='game-time-remaining'),
+    path('games/<int:pk>/moves/', MoveCreateView.as_view(), name='move-create'),
 ]

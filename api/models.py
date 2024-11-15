@@ -1,8 +1,7 @@
-from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
+from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin, Group, Permission
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 from datetime import timedelta
-from django.utils import timezone
 
 
 class CustomUserManager(BaseUserManager):
@@ -38,6 +37,17 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     USERNAME_FIELD = 'username'
     REQUIRED_FIELDS = ['email']
 
+    groups = models.ManyToManyField(
+        Group,
+        related_name='customuser_set',
+        blank=True
+    )
+    user_permissions = models.ManyToManyField(
+        Permission,
+        related_name='customuser_set',
+        blank=True
+    )
+
     def __str__(self):
         return self.username
 
@@ -58,7 +68,6 @@ class Game(models.Model):
     def __str__(self):
         return f"Game between {self.player1.username if self.player1 else '[Deleted User]'} and {self.player2.username if self.player2 else '[Deleted User]'}"
 
-    # Additional helper methods
     def is_active(self):
         return not self.is_complete
 
@@ -67,43 +76,6 @@ class Game(models.Model):
             'player1': self.player1.username if self.player1 else '[Deleted User]',
             'player2': self.player2.username if self.player2 else '[Deleted User]',
         }
-
-    def build_board(self):
-        all_moves = self.moves.all()
-        board = [[0] * 8 for _ in range(8)]
-        for move in all_moves:
-            player = 1
-            if move.move_order % 2 == 1:
-                player = 2
-            board[move.row][move.column] = player
-        return board
-
-    def check_winner(self):
-        board = self.build_board()
-
-        def check_direction(i, j, di, dj, player):
-            count = 0
-            for k in range(4):
-                if 0 <= i + di * k < 8 and 0 <= j + dj * k < 8 and board[i + di * k][j + dj * k] == player:
-                    count += 1
-                else:
-                    break
-            return count == 4
-
-        for i in range(8):
-            for j in range(8):
-                if board[i][j] == 0:
-                    continue
-                player = board[i][j]
-
-                # Check all directions: right, down, and diagonals
-                if (check_direction(i, j, 0, 1, player) or
-                        check_direction(i, j, 1, 0, player) or
-                        check_direction(i, j, 1, 1, player) or
-                        check_direction(i, j, 1, -1, player)):
-                    return player
-
-        return None
 
     def get_turn(self):
         if self.winner:
@@ -114,20 +86,6 @@ class Game(models.Model):
                 return self.player1
             else:
                 return self.player2
-
-    def time_remaining(self):
-        if self.is_complete:
-            return timedelta(seconds=0)
-
-        now = timezone.now()
-        elapsed_time = now - self.updated_at
-        remaining_time = self.time_limit - elapsed_time
-
-        if remaining_time < timedelta(seconds=0):
-            #TODO: We should also add a winner here
-            return timedelta(seconds=0)
-
-        return remaining_time
 
 
 class Move(models.Model):

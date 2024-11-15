@@ -1,5 +1,21 @@
 from rest_framework import serializers
-from models import CustomUser, Game, Move
+from .models import CustomUser, Game, Move
+from .services import GameService
+
+
+class UserRegistrationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CustomUser
+        fields = ['username', 'email', 'password']
+        extra_kwargs = {'password': {'write_only': True}}
+
+    def create(self, validated_data):
+        user = CustomUser.objects.create_user(
+            username=validated_data['username'],
+            email=validated_data['email'],
+            password=validated_data['password']
+        )
+        return user
 
 
 class CustomUserSerializer(serializers.ModelSerializer):
@@ -7,6 +23,15 @@ class CustomUserSerializer(serializers.ModelSerializer):
         model = CustomUser
         fields = ['id', 'username', 'email', 'points', 'is_active', 'is_staff', 'date_joined']
         read_only_fields = ['id', 'date_joined', 'password']
+
+
+class MoveSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Move
+        fields = ['id', 'player', 'row', 'column', 'move_order']
+        read_only_fields = ['id']
+
+    player = CustomUserSerializer(read_only=True)
 
 
 class GameSerializer(serializers.ModelSerializer):
@@ -23,13 +48,4 @@ class GameSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'created_at', 'updated_at']
 
     def get_time_remaining(self, obj):
-        return str(obj.time_remaining())
-
-
-class MoveSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Move
-        fields = ['id', 'player', 'row', 'column', 'move_order']
-        read_only_fields = ['id']
-
-    player = CustomUserSerializer(read_only=True)
+        return str(GameService.get_time_remaining(obj))
