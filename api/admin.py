@@ -1,4 +1,7 @@
 from django.contrib import admin
+from .models import CustomUser, Game, Move
 
-#TODO: import models and add them using the below command
-#admin.site.register(Model)
+
+admin.site.register(CustomUser)
+admin.site.register(Game)
+admin.site.register(Move)

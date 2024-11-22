@@ -1,6 +1,8 @@
 from rest_framework import serializers
+from rest_framework.exceptions import AuthenticationFailed
+from rest_framework_simplejwt.tokens import RefreshToken
+from django.contrib.auth import authenticate
 from .models import CustomUser, Game, Move
-from .services import GameService
 
 
 class UserRegistrationSerializer(serializers.ModelSerializer):
@@ -18,34 +20,58 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         return user
 
 
+class LoginSerializer(serializers.Serializer):
+    username = serializers.CharField()
+    password = serializers.CharField()
+
+    def validate(self, data):
+        username = data.get("username")
+        password = data.get("password")
+        user = authenticate(username=username, password=password)
+        if user is None:
+            raise AuthenticationFailed("Invalid credentials.")
+        if not user.is_active:
+            raise AuthenticationFailed("User is inactive.")
+        return user
+
+    def create_token(self, user):
+        refresh = RefreshToken.for_user(user)
+        return str(refresh.access_token)
+
+    def get_user_games(self, user):
+        player1_games = Game.objects.filter(player1=user)
+        player2_games = Game.objects.filter(player2=user)
+
+        user_games = player1_games | player2_games
+        sorted_games = sorted(user_games, key=lambda game: game.updated_at, reverse=True)
+
+        games_data = [GameSerializer(game).data for game in sorted_games]
+        return games_data
+
+
 class CustomUserSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomUser
-        fields = ['id', 'username', 'email', 'points', 'is_active', 'is_staff', 'date_joined']
+        fields = ['id', 'username', "email"]
         read_only_fields = ['id', 'date_joined', 'password']
 
 
 class MoveSerializer(serializers.ModelSerializer):
     class Meta:
         model = Move
-        fields = ['id', 'player', 'row', 'column', 'move_order']
+        fields = ['id', 'player', 'row', 'column']
         read_only_fields = ['id']
 
     player = CustomUserSerializer(read_only=True)
 
 
 class GameSerializer(serializers.ModelSerializer):
-    player1 = CustomUserSerializer(read_only=True)
-    player2 = CustomUserSerializer(read_only=True)
-    winner = CustomUserSerializer(read_only=True, required=False)
+    player1 = serializers.StringRelatedField(read_only=True)
+    player2 = serializers.StringRelatedField(read_only=True)
     moves = MoveSerializer(many=True, read_only=True)
-
-    time_remaining = serializers.SerializerMethodField()
 
     class Meta:
         model = Game
-        fields = ['id', 'player1', 'player2', 'winner', 'is_complete', 'time_limit', 'created_at', 'updated_at', 'moves', 'time_remaining']
-        read_only_fields = ['id', 'created_at', 'updated_at']
+        fields = ['id', 'player1', 'player2', 'winner', 'time_limit', 'updated_at', 'moves']
+        read_only_fields = ['id', 'updated_at']
 
-    def get_time_remaining(self, obj):
-        return str(GameService.get_time_remaining(obj))

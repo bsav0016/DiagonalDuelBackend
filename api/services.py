@@ -13,12 +13,6 @@ class GameService:
         return game
 
     @staticmethod
-    def get_remaining_time(game):
-        elapsed_time = timezone.now() - game.created_at
-        remaining_time = game.time_limit - elapsed_time
-        return max(remaining_time, timedelta(seconds=0))
-
-    @staticmethod
     def make_move(game, player, row, column):
         if game.is_complete:
             raise ValueError("Game is already complete.")

@@ -1,6 +1,7 @@
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin, Group, Permission
 from django.db import models
 from django.utils.translation import gettext_lazy as _
+from django.conf import settings
 from datetime import timedelta
 
 
@@ -54,16 +55,16 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
 
 class Game(models.Model):
     player1 = models.ForeignKey(
-        CustomUser, on_delete=models.SET_NULL, null=True, blank=True, related_name="games_as_player1"
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="games_as_player1"
     )
     player2 = models.ForeignKey(
-        CustomUser, on_delete=models.SET_NULL, null=True, blank=True, related_name="games_as_player2"
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="games_as_player2"
     )
     winner = models.CharField(max_length=200, null=True, blank=True)
     is_complete = models.BooleanField(default=False)
     time_limit = models.DurationField(default=timedelta(days=1))
     created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    updated_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return f"Game between {self.player1.username if self.player1 else '[Deleted User]'} and {self.player2.username if self.player2 else '[Deleted User]'}"
@@ -89,8 +90,8 @@ class Game(models.Model):
 
 
 class Move(models.Model):
-    game = models.ForeignKey(Game, on_delete=models.CASCADE, related_name="moves")
-    player = models.ForeignKey(CustomUser, on_delete=models.SET_NULL, null=True, blank=True)
+    game_ref = models.ForeignKey(Game, on_delete=models.CASCADE, null=True, blank=True, related_name="moves")
+    player = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
     row = models.PositiveSmallIntegerField()
     column = models.PositiveSmallIntegerField()
     move_order = models.PositiveSmallIntegerField(default=1)
