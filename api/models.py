@@ -1,5 +1,5 @@
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin, Group, Permission
-from django.db import models
+from django.db import models, transaction
 from django.utils.translation import gettext_lazy as _
 from django.conf import settings
 from datetime import timedelta
@@ -88,6 +88,17 @@ class Game(models.Model):
             else:
                 return self.player2
 
+    @staticmethod
+    @transaction.atomic
+    def create_from_queue():
+        queue_entries = MatchmakingQueue.objects.select_for_update()[:2]
+        if len(queue_entries) < 2:
+            return None
+        player1, player2 = queue_entries[0].user, queue_entries[1].user
+        game = Game.objects.create(player1=player1, player2=player2)
+        queue_entries.delete()
+        return game
+
 
 class Move(models.Model):
     game_ref = models.ForeignKey(Game, on_delete=models.CASCADE, null=True, blank=True, related_name="moves")
@@ -101,3 +112,18 @@ class Move(models.Model):
 
     def __str__(self):
         return f"Move {self.move_order} in Game {self.game.id} by {self.player.username} at ({self.row}, {self.column})"
+
+
+class MatchmakingQueue(models.Model):
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="matchmaking_queue_entry"
+    )
+    joined_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['joined_at']
+
+    def __str__(self):
+        return f"{self.user.username} joined queue at {self.joined_at}"

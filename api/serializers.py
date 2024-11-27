@@ -2,7 +2,7 @@ from rest_framework import serializers
 from rest_framework.exceptions import AuthenticationFailed
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
-from .models import CustomUser, Game, Move
+from .models import CustomUser, Game, Move, MatchmakingQueue
 
 
 class UserRegistrationSerializer(serializers.ModelSerializer):
@@ -34,9 +34,12 @@ class LoginSerializer(serializers.Serializer):
             raise AuthenticationFailed("User is inactive.")
         return user
 
-    def create_token(self, user):
+    def create_tokens(self, user):
         refresh = RefreshToken.for_user(user)
-        return str(refresh.access_token)
+        return {
+            "access": str(refresh.access_token),
+            "refresh": str(refresh),
+        }
 
     def get_user_games(self, user):
         player1_games = Game.objects.filter(player1=user)
@@ -75,3 +78,8 @@ class GameSerializer(serializers.ModelSerializer):
         fields = ['id', 'player1', 'player2', 'winner', 'time_limit', 'updated_at', 'moves']
         read_only_fields = ['id', 'updated_at']
 
+
+class MatchmakingQueueSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = MatchmakingQueue
+        fields = ['id', 'user', 'joined_at']

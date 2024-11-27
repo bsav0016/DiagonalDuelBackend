@@ -1,34 +1,31 @@
-from datetime import timedelta
-from django.utils import timezone
-from .models import Game, Move
+from datetime import datetime, timezone
+from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken
+from .models import Move
 
 
 class GameService:
     @staticmethod
-    def start_game(player1, player2, time_limit):
-        if player1 == player2:
-            raise ValueError("Player 1 and Player 2 cannot be the same.")
-
-        game = Game.objects.create(player1=player1, player2=player2, time_limit=time_limit)
-        return game
-
-    @staticmethod
     def make_move(game, player, row, column):
         if game.is_complete:
             raise ValueError("Game is already complete.")
+        if not (player == game.get_turn()):
+            raise ValueError("It's not your turn!")
 
-        if (game.moves.count() % 2 == 0 and player != game.player1) or (
-                game.moves.count() % 2 == 1 and player != game.player2):
-            raise ValueError("It's your opponent's turn!")
+        move = Move.objects.create(game_ref=game, player=player, row=row, column=column, move_order=game.moves.count() + 1)
+        board = GameService.build_board(game)
+        if player == game.player1:
+            piece = 1
+        else:
+            piece = 2
 
-        move = Move.objects.create(game=game, player=player, row=row, column=column, move_order=game.moves.count() + 1)
-
-        winner = game.check_winner()
+        board[row][column] = piece
+        winner = GameService.check_winner(game)
         if winner:
             game.winner = winner
             game.is_complete = True
-            game.save()
 
+        game.updated_at = datetime.now(timezone.utc)
+        game.save()
         return move
 
     @staticmethod
@@ -43,8 +40,19 @@ class GameService:
         return board
 
     @staticmethod
+    def is_valid(board, row, col):
+        if board[row][col] != 0:
+            return False
+        elif row == 0 or col == 0:
+            return True
+        elif board[row-1][col] == 0 and board[row-1][col-1] == 0 and board[row][col-1] == 0:
+            return False
+        else:
+            return True
+
+    @staticmethod
     def check_winner(game):
-        board = game.build_board()
+        board = GameService.build_board(game)
 
         def check_direction(i, j, di, dj, player):
             count = 0
@@ -66,3 +74,8 @@ class GameService:
                         check_direction(i, j, 1, -1, player)):
                     return player
         return None
+
+class CleanupService:
+    def clean_expired_blacklisted_tokens(self):
+        now = timezone.now()
+        BlacklistedToken.objects.filter(expires_at__lt=now).delete()
