@@ -7,6 +7,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from django.db.models import F, Q
 from django.utils.timezone import now, make_aware, is_aware
 from django.db import transaction
+from datetime import timedelta
 from .models import Game, MatchmakingQueue
 from .serializers import (GameSerializer, MoveSerializer, UserRegistrationSerializer, LoginSerializer,
                           CustomUserSerializer, MatchmakingQueueSerializer)
@@ -42,7 +43,11 @@ class LoginView(APIView):
             user = serializer.validate(data=request.data)
             tokens = serializer.create_tokens(user)
             games_data = serializer.get_user_games(user)
-            is_matchmaking = MatchmakingQueue.objects.filter(user=user).exists()
+
+            matchmaking_entries = MatchmakingQueue.objects.filter(user=user)
+            matchmaking_times = []
+            for matchmaking_entry in matchmaking_entries:
+                matchmaking_times.append(matchmaking_entry.time_limit.days)
 
             return Response({
                 "username": user.username,
@@ -50,7 +55,7 @@ class LoginView(APIView):
                 "refresh_token": tokens['refresh'],
                 "access_token": tokens['access'],
                 "games": games_data,
-                "matchmaking": is_matchmaking
+                "matchmaking": matchmaking_times
             }, status=status.HTTP_200_OK)
         return Response({"detail": "Invalid credentials."}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -75,18 +80,23 @@ class MatchmakingView(APIView):
     permission_classes = [IsAuthenticated]
     def post(self, request):
         user = request.user
-        if MatchmakingQueue.objects.filter(user=user).exists():
-            return Response({"detail": "User is already in the matchmaking queue."}, status=status.HTTP_400_BAD_REQUEST)
+        time_limit_days = request.data.get('time_limit_days', 1)
+        time_limit = timedelta(days=time_limit_days)
+        if MatchmakingQueue.objects.filter(user=user).filter(time_limit=time_limit).exists():
+            return Response(
+                {"detail": "User is already in the matchmaking queue for this time limit."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         try:
             with transaction.atomic():
-                opponent_entry = MatchmakingQueue.objects.exclude(user=user).order_by('joined_at').first()
+                opponent_entry = MatchmakingQueue.objects.exclude(user=user).filter(time_limit=time_limit).first()
                 if opponent_entry:
-                    game = Game.objects.create(player1=opponent_entry.user, player2=user)
+                    game = Game.objects.create(player1=opponent_entry.user, player2=user, time_limit=time_limit)
                     opponent_entry.delete()
                     return Response(GameSerializer(game).data, status=status.HTTP_201_CREATED)
 
-                queue_entry = MatchmakingQueue.objects.create(user=user)
+                queue_entry = MatchmakingQueue.objects.create(user=user, time_limit=timedelta(days=time_limit_days))
                 return Response(
                     {
                         "detail": "No opponents available. You have been added to the queue.",
@@ -95,21 +105,29 @@ class MatchmakingView(APIView):
                     status=status.HTTP_200_OK,
                 )
         except Exception as e:
-            return Response({"detail": f"An error occurred: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(
+                {"detail": f"An error occurred: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     def get(self, request, *args, **kwargs):
         user = request.user
-        in_queue = MatchmakingQueue.objects.filter(user=user).exists()
+        matchmaking_entries = MatchmakingQueue.objects.filter(user=user)
+        matchmaking_times = []
+        for matchmaking_entry in matchmaking_entries:
+            matchmaking_times.append(matchmaking_entry.time_limit.days)
 
         return Response(
-            {"matchmaking": in_queue},
+            {"matchmaking": matchmaking_times},
             status=status.HTTP_200_OK
         )
 
     def delete(self, request):
         user = request.user
+        time_limit_days = request.data.get('time_limit_days', 1)
+        time_limit = timedelta(days=time_limit_days)
         try:
-            matchmaking_queue = MatchmakingQueue.objects.get(user=user)
+            matchmaking_queue = MatchmakingQueue.objects.filter(time_limit=time_limit).get(user=user)
         except MatchmakingQueue.DoesNotExist:
             return Response(
                 {"detail": "User not in matchmaking queue."},

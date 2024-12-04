@@ -115,15 +115,19 @@ class Move(models.Model):
 
 
 class MatchmakingQueue(models.Model):
-    user = models.OneToOneField(
+    user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
-        related_name="matchmaking_queue_entry"
+        related_name="matchmaking_queue_entries"
     )
     joined_at = models.DateTimeField(auto_now_add=True)
+    time_limit = models.DurationField(default=timedelta(days=1))
 
     class Meta:
         ordering = ['joined_at']
+        constraints = [
+            models.UniqueConstraint(fields=['user', 'time_limit'], name='unique_user_time_limit')
+        ]
 
     def __str__(self):
         return f"{self.user.username} joined queue at {self.joined_at}"

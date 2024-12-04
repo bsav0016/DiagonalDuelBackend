@@ -82,4 +82,4 @@ class GameSerializer(serializers.ModelSerializer):
 class MatchmakingQueueSerializer(serializers.ModelSerializer):
     class Meta:
         model = MatchmakingQueue
-        fields = ['id', 'user', 'joined_at']
+        fields = ['id', 'user', 'joined_at', 'time_limit']
