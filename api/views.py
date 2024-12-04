@@ -8,7 +8,7 @@ from django.db.models import F, Q
 from django.utils.timezone import now, make_aware, is_aware
 from django.db import transaction
 from datetime import timedelta
-from .models import Game, MatchmakingQueue
+from .models import Game, MatchmakingQueue, CustomUser
 from .serializers import (GameSerializer, MoveSerializer, UserRegistrationSerializer, LoginSerializer,
                           CustomUserSerializer, MatchmakingQueueSerializer)
 from .services import GameService
@@ -55,7 +55,9 @@ class LoginView(APIView):
                 "refresh_token": tokens['refresh'],
                 "access_token": tokens['access'],
                 "games": games_data,
-                "matchmaking": matchmaking_times
+                "matchmaking": matchmaking_times,
+                "computer_points": user.computer_points,
+                "online_rating": user.online_rating
             }, status=status.HTTP_200_OK)
         return Response({"detail": "Invalid credentials."}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -161,10 +163,17 @@ class UserGamesView(APIView):
 
         for game in timed_out_games:
             if game.player1 == game.get_turn():
-                game.winner = f"{game.player2.username} wins by timeout"
+                winner = game.player2
+                loser = game.player1
             else:
-                game.winner = f"{game.player1.username} wins by timeout"
+                winner = game.player1
+                loser = game.player2
+
+            game.winner = f"{winner.username} wins by timeout"
+            game.is_complete = True
             game.save()
+            GameService.update_ratings(winner, loser, result=1)
+
         sorted_games = user_games.order_by('-updated_at')
 
         serializer = GameSerializer(sorted_games, many=True)
@@ -199,3 +208,24 @@ class MoveCreateView(APIView):
             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Game.DoesNotExist:
             return Response({"detail": "Game not found."}, status=status.HTTP_404_NOT_FOUND)
+
+
+class LeaderboardView(APIView):
+    def get(self, request, *args, **kwargs):
+        computer_points_leaderboard = (
+            CustomUser.objects.all()
+            .order_by('-computer_points')
+            .values('username', 'computer_points')
+        )
+
+        online_rating_leaderboard = (
+            CustomUser.objects.all()
+            .order_by('-online_rating')
+            .values('username', 'online_rating')
+        )
+
+        response_data = {
+            "computer_points_leaderboard": list(computer_points_leaderboard),
+            "online_rating_leaderboard": list(online_rating_leaderboard),
+        }
+        return Response(response_data, status=200)

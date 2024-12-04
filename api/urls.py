@@ -1,5 +1,6 @@
 from django.urls import path
-from .views import UserRegistrationView, LoginView, UserGamesView, MoveCreateView, LogoutView, MatchmakingView
+from .views import (UserRegistrationView, LoginView, UserGamesView, MoveCreateView, LogoutView, MatchmakingView,
+                    LeaderboardView)
 from rest_framework_simplejwt.views import TokenRefreshView
 
 
@@ -10,5 +11,6 @@ urlpatterns = [
     path('games/', UserGamesView.as_view(), name='user-games'),
     path('games/<int:game_id>/moves/', MoveCreateView.as_view(), name='move-create'),
     path('matchmaking/', MatchmakingView.as_view(), name='matchmaking'),
+    path('leaderboard/', LeaderboardView.as_view(), name='leaderboard'),
     path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
 ]

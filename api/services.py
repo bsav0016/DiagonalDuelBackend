@@ -24,6 +24,10 @@ class GameService:
             game.winner = winner
             game.is_complete = True
 
+            winner_player = game.player1 if winner == 1 else game.player2
+            loser_player = game.player2 if winner == 1 else game.player1
+            GameService.update_ratings(winner_player, loser_player, result=1)
+
         game.updated_at = datetime.now(timezone.utc)
         game.save()
         return move
@@ -74,6 +78,27 @@ class GameService:
                         check_direction(i, j, 1, -1, player)):
                     return player
         return None
+
+    @staticmethod
+    def update_ratings(winner, loser, result):
+        """
+        Update the Elo ratings for the winner and loser of a game.
+        :param winner: Winner User instance
+        :param loser: Loser User instance
+        :param result: 1 if the winner won, 0 if the game was a draw
+        """
+        K_FACTOR = 32
+        winner_rating = winner.rating
+        loser_rating = loser.rating
+
+        expected_winner = 1 / (1 + 10 ** ((loser_rating - winner_rating) / 400))
+        expected_loser = 1 - expected_winner
+
+        winner.rating += K_FACTOR * (result - expected_winner)
+        loser.rating += K_FACTOR * ((1 - result) - expected_loser)
+
+        winner.save()
+        loser.save()
 
 class CleanupService:
     def clean_expired_blacklisted_tokens(self):

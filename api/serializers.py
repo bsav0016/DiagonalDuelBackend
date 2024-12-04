@@ -55,7 +55,7 @@ class LoginSerializer(serializers.Serializer):
 class CustomUserSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomUser
-        fields = ['id', 'username', "email"]
+        fields = ['id', 'username', 'email', 'computer_points', 'online_rating']
         read_only_fields = ['id', 'date_joined', 'password']
 
 
@@ -72,14 +72,32 @@ class GameSerializer(serializers.ModelSerializer):
     player1 = serializers.StringRelatedField(read_only=True)
     player2 = serializers.StringRelatedField(read_only=True)
     moves = MoveSerializer(many=True, read_only=True)
+    player1_rating = serializers.SerializerMethodField()
+    player2_rating = serializers.SerializerMethodField()
 
     class Meta:
         model = Game
-        fields = ['id', 'player1', 'player2', 'winner', 'time_limit', 'updated_at', 'moves']
+        fields = ['id', 'player1', 'player1_rating', 'player2', 'player2_rating', 'winner', 'time_limit', 'updated_at', 'moves']
         read_only_fields = ['id', 'updated_at']
+
+    def get_player1_rating(self, obj):
+        if obj.player1:
+            return obj.player1.online_rating
+        return None
+
+    def get_player2_rating(self, obj):
+        if obj.player2:
+            return obj.player2.online_rating
+        return None
 
 
 class MatchmakingQueueSerializer(serializers.ModelSerializer):
     class Meta:
         model = MatchmakingQueue
         fields = ['id', 'user', 'joined_at', 'time_limit']
+
+
+class LeaderboardSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CustomUser
+        fields = ['username', 'computer_points', 'online_rating']
